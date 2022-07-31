@@ -4,3 +4,5 @@ pymongo[srv]
 dnspython
 motor
 chardet
+python-dotenv
+tgcrypto
