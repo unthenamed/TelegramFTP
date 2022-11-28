@@ -14,8 +14,8 @@ bot = Client(
 
 @bot.on_message(filters.text)
 async def get_id(_cl, message):
-	if message.text.startswith("/id") or message.text.startswith("/channel"):
-		await message.reply(str(message.chat.id))
+    if message.text.startswith("/id") or message.text.startswith("/channel"):
+        await message.reply(str(message.chat.id))
 
 if __name__ == "__main__":
     try:

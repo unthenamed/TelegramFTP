@@ -1,15 +1,14 @@
 from asyncio import CancelledError, get_event_loop, gather, sleep as asleep
 from collections import namedtuple
 from functools import wraps
+from io import BytesIO
+from os import environ
 from pathlib import PurePosixPath
 from sys import exc_info
 from time import time
 from uuid import uuid4
-from io import BytesIO
-from os import environ
 
 from .errors import PathIOError
-from .common import AbstractAsyncLister
 from .tg import File
 
 __all__ = (
@@ -46,7 +45,9 @@ class AbstractPathIO:
         self.connection = connection
 
 class Node:
-    def __init__(self, type, name, ctime=None, mtime=None, size=0, parent="/", parts=[], *args, **kwargs):
+    def __init__(self, type, name, ctime=None, mtime=None, size=0, parent="/", parts=None, **k):
+        if parts is None:
+            parts = []
         self.type = type
         self.name = name
         self.ctime = ctime or int(time())
@@ -71,7 +72,7 @@ class MongoDBMemoryIO:
     async def __aexit__(self, *args, **kwargs):
         pass
 
-    async def seek(self, offset=0, *args, **kwargs):
+    async def seek(self, offset=0):
         self.offset = offset
 
     async def _writePart(self, data, size, partId, uploadId):
@@ -84,7 +85,7 @@ class MongoDBMemoryIO:
         u = str(uuid4())
         await self._db.files.update_one({"name": self._node.name, "parent": str(self._node.parent)}, {"$set": {"uploadId": u}})
         partNumber = 0 if "a" not in self._mode else max([p["part_id"] for p in self._node.parts])+1
-        async for data in stream.iter_by_block(1024*1024*8):
+        async for data in stream.iter_by_block(MongoDBPathIO.chunk_size):
             size = len(data)
             data = BytesIO(data)
             self._uploadingParts.append(partNumber)
@@ -109,9 +110,9 @@ class MongoDBMemoryIO:
             while not downloaded:
                 downloading = [
                     loop.create_task(file.getChunkAt(_o*1024*1024))
-                    for _o in range(o, o+8)
+                    for _o in range(o, o+MongoDBPathIO.download_workers)
                 ]
-                o += 8
+                o += MongoDBPathIO.download_workers
                 for d in downloading:
                     res = await gather(d)
                     chunk = res[0] if res else b''
@@ -123,6 +124,8 @@ class MongoDBMemoryIO:
 class MongoDBPathIO(AbstractPathIO):
     db = None
     tg = None
+    chunk_size = 1024 * 1024 * 16
+    download_workers = 2
     Stats = namedtuple(
         "Stats", (
             "st_size",
@@ -151,7 +154,7 @@ class MongoDBPathIO(AbstractPathIO):
 
     async def get_node(self, path):
         if str(path) == "/":
-            return Node("dir", "", 0, 0, size=0, parent="/", tg_fileId=None)
+            return Node("dir", "", 0, 0, size=0, parent="/")
         node = await self.db.files.find_one({"name": path.parts[-1], "parent": str(path.parents[0])})
         node = Node(**node) if node else node
         return node
@@ -292,7 +295,6 @@ class MongoDBPathIO(AbstractPathIO):
             destination = Node(
                 type=source.type,
                 name=destination.parts[-1],
-                path=destination,
                 parent=destination.parents[0]
             )
             await self.db.files.update_one(

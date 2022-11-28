@@ -9,10 +9,10 @@ if exists(".env"):
 async def main():
     mongo = AsyncIOMotorClient(environ.get("MONGODB")).ftp
     for collection in ["users", "files"]:
-    	try:
-    		await mongo.create_collection(collection)
-    	except:
-    		pass
+        try:
+            await mongo.create_collection(collection)
+        except Exception as e:
+            print(f"Error: {e}")
 
 if __name__ == "__main__":
     run(main())

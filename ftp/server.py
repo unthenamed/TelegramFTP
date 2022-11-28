@@ -92,7 +92,7 @@ class MongoDBUserManager(AbstractUserManager):
             else:
                 self.users.append(user)
             if user.login not in self.available_connections:
-                self.available_connections[user] = AvailableConnections(16)
+                self.available_connections[user] = AvailableConnections(4)
         if not user:
             state = AbstractUserManager.GetUserResponse.ERROR
             info = "no such username"
@@ -266,7 +266,7 @@ class Server:
         self.path_io_factory = PathIONursery(path_io)
         self.user_manager = user_manager
 
-        self.available_connections = AvailableConnections(128)
+        self.available_connections = AvailableConnections(32)
         self.commands_mapping = {
             "abor": self.abor,
             "appe": self.appe,
@@ -358,9 +358,6 @@ class Server:
         s = line.decode(encoding).rstrip()
         cmd, _, rest = s.partition(" ")
 
-        if cmd.lower() in censor_commands:
-            stars = "*" * len(rest)
-
         return cmd.lower(), rest
 
     async def response_writer(self, stream, response_queue):
@@ -421,7 +418,7 @@ class Server:
                             connection.response("502", message)
         except CancelledError:
             raise
-        except Exception as e:
+        except:
             pass
         finally:
             tasks_to_wait = []

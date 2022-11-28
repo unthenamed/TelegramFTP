@@ -1,8 +1,10 @@
+from pyrogram.errors import AuthBytesInvalid
 from pyrogram.file_id import FileId
 from pyrogram.session import Session, Auth
 from pyrogram.raw.functions.upload import GetFile
 from pyrogram.raw.functions.auth import ImportAuthorization, ExportAuthorization
 from pyrogram.raw.types import InputDocumentFileLocation
+from asyncio import sleep as asleep
 
 class File:
     def __init__(self, id, client):
@@ -12,16 +14,20 @@ class File:
 
     async def getChunkAt(self, offset=0):
         session = await get_media_session(self.client, self.id)
-        return (await session.send(GetFile(location=self.loc, offset=offset, limit=1024*1024))).bytes
+        try:
+            return (await session.send(GetFile(location=self.loc, offset=offset, limit=1024*1024))).bytes
+        except TimeoutError:
+            await asleep(1)
+            return await self.getChunkAt(offset)
 
     async def stream(self, offset=0):
         try:
-            while (data := await self.getChunkAt(offset)):
+            while data := await self.getChunkAt(offset):
                 offset += len(data)
                 yield data
                 if len(data) != 1024*1024:
                     break
-        except Exception as e:
+        except:
             pass
 
 async def get_media_session(client, file_id):
@@ -31,9 +37,9 @@ async def get_media_session(client, file_id):
             await media_session.start()
 
             for _ in range(6):
-                exported_auth = await client.send(ExportAuthorization(dc_id=file_id.dc_id))
+                exported_auth = await client.invoke(ExportAuthorization(dc_id=file_id.dc_id))
                 try:
-                    await media_session.send(ImportAuthorization(id=exported_auth.id, bytes=exported_auth.bytes))
+                    await media_session.invoke(ImportAuthorization(id=exported_auth.id, bytes=exported_auth.bytes))
                     break
                 except AuthBytesInvalid:
                     continue
