@@ -26,7 +26,7 @@ Based on [aioftp server](https://github.com/aio-libs/aioftp/blob/master/aioftp/s
 <details>
 <summary><b>Setup:</b></summary>
 
-  1. Create bot in [BotFather](https://telegram.dog/botfather).
+  1. Create bot in [BotFather](https://t.me/botfather).
   2. Obtain API_ID and API_HASH on [my.telegram.org](https://my.telegram.org).
   3. Create mongodb database on [MongoDB Cloud](https://cloud.mongodb.com/) (or use your server) and copy connect string.
   4. Insert all variables into .env
@@ -36,6 +36,7 @@ Based on [aioftp server](https://github.com/aio-libs/aioftp/blob/master/aioftp/s
   8. Create mongodb database named `ftp`.
   9. Run `setup_database.py`.
   10. Run `accounts_manager.py` to create accounts.
-  11. Run `main.py`.
+  11. Disable your ftp client timeout.
+  12. Run `main.py`.
 
 </details>
