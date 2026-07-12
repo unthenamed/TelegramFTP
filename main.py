@@ -13,7 +13,7 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-# 2. Impor Library setelah loop disiapkan
+# 2. Impor Library
 from pyrogram import Client
 import aioftp
 import aiosqlite
@@ -91,7 +91,8 @@ class TelegramPath(aioftp.PathIO):
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT filepath FROM files") as cursor:
                 async for row in cursor:
-                    yield pathlib.Path(row[0]).name
+                    # FIX: Harus mengembalikan objek Path, bukan string
+                    yield pathlib.Path(row[0])
 
     async def mkdir(self, path, parents=False, exist_ok=False):
         async with aiosqlite.connect(self.db_path) as db:
@@ -107,7 +108,6 @@ async def main():
     await app.start()
     logger.success("Klien Telegram terhubung!")
 
-    # Setup FTP Server (Tanpa argumen base yang sering error)
     user = aioftp.User()
     server = aioftp.Server(
         users=[user],
