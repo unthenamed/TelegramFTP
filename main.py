@@ -106,11 +106,13 @@ async def main():
     logger.success("Klien Telegram terhubung!")
 
     # Setup FTP Server
-    user = aioftp.User(base=pathlib.Path("/"))
+    user = aioftp.User() 
+    
     server = aioftp.Server(
         users=[user],
         path_io_factory=TelegramPath
     )
+
     
     logger.info(f"FTP Server berjalan di {FTP_HOST}:{FTP_PORT}")
     await server.start(FTP_HOST, FTP_PORT)
