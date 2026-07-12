@@ -4,19 +4,24 @@ import sys
 import time
 import pathlib
 import sqlite3
-import aioftp
-import aiosqlite
-from pyrogram import Client
-from loguru import logger
-from dotenv import load_dotenv
+import threading
 
-# 1. FIX: Setup Event Loop untuk Termux/Python 3.14+
+# --- FIX: INI BAGIAN PALING PENTING ---
+# Kita buat event loop secara paksa SEBELUM library lain di-import
 try:
     asyncio.get_running_loop()
 except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+# --------------------------------------
 
-# 2. Load Config
+# Sekarang aman untuk mengimpor library yang bergantung pada event loop
+from pyrogram import Client
+import aioftp
+import aiosqlite
+from loguru import logger
+from dotenv import load_dotenv
+
 load_dotenv()
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
