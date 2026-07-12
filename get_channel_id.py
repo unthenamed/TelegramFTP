@@ -3,7 +3,7 @@ import sys
 import logging
 
 # Setup logging untuk debugging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Fix untuk Python 3.14 - setup event loop sebelum import pyrogram
@@ -26,37 +26,34 @@ bot = Client(
     api_id=int(environ.get("API_ID", 0)),
     api_hash=environ.get("API_HASH"),
     bot_token=environ.get("BOT_TOKEN"),
-    no_updates=False  # Ensure we receive updates
+    no_updates=False
 )
 
-# Handler untuk /id command
-@bot.on_message(filters.command("id"))
-async def get_id(client, message):
-    logger.info(f"[ID COMMAND] Received /id from user {message.from_user.id if message.from_user else 'Unknown'}")
-    logger.info(f"[ID COMMAND] Chat ID: {message.chat.id}")
-    try:
-        response = f"Channel/Chat ID: `{message.chat.id}`"
-        await message.reply(response)
-        logger.info(f"[ID COMMAND] Reply sent successfully!")
-    except Exception as e:
-        logger.error(f"[ID COMMAND] Error sending reply: {e}", exc_info=True)
-
-# Handler untuk /channel command
-@bot.on_message(filters.command("channel"))
-async def get_channel(client, message):
-    logger.info(f"[CHANNEL COMMAND] Received /channel from user {message.from_user.id if message.from_user else 'Unknown'}")
-    logger.info(f"[CHANNEL COMMAND] Chat ID: {message.chat.id}")
-    try:
-        response = f"Channel/Chat ID: `{message.chat.id}`"
-        await message.reply(response)
-        logger.info(f"[CHANNEL COMMAND] Reply sent successfully!")
-    except Exception as e:
-        logger.error(f"[CHANNEL COMMAND] Error sending reply: {e}", exc_info=True)
-
-# Handler untuk semua pesan (untuk debug)
-@bot.on_message()
-async def debug_all_messages(client, message):
-    logger.debug(f"[DEBUG] Message received: '{message.text}' from {message.from_user.id if message.from_user else 'Unknown'} in chat {message.chat.id}")
+# Handler untuk semua pesan text
+@bot.on_message(filters.text)
+async def handle_message(client, message):
+    text = message.text.strip() if message.text else ""
+    logger.info(f"[MESSAGE] Received: '{text}' from {message.from_user.id if message.from_user else 'Unknown'} in chat {message.chat.id}")
+    
+    # Cek apakah pesan dimulai dengan /id
+    if text.startswith("/id"):
+        logger.info(f"[ID COMMAND] Processing /id command")
+        try:
+            response = f"Chat ID: `{message.chat.id}`"
+            await message.reply(response, parse_mode="markdown")
+            logger.info(f"[ID COMMAND] Reply sent successfully!")
+        except Exception as e:
+            logger.error(f"[ID COMMAND] Error sending reply: {e}", exc_info=True)
+    
+    # Cek apakah pesan dimulai dengan /channel
+    elif text.startswith("/channel"):
+        logger.info(f"[CHANNEL COMMAND] Processing /channel command")
+        try:
+            response = f"Chat ID: `{message.chat.id}`"
+            await message.reply(response, parse_mode="markdown")
+            logger.info(f"[CHANNEL COMMAND] Reply sent successfully!")
+        except Exception as e:
+            logger.error(f"[CHANNEL COMMAND] Error sending reply: {e}", exc_info=True)
 
 async def main():
     try:
