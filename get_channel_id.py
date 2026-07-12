@@ -1,4 +1,13 @@
 import asyncio
+import sys
+
+# Fix untuk Python 3.14 - setup event loop sebelum import pyrogram
+if sys.version_info >= (3, 10):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
 from pyrogram import Client, filters
 from os import environ
 from os.path import exists
