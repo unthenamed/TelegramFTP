@@ -13,7 +13,7 @@ if sys.version_info >= (3, 10):
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
-from pyrogram import Client, filters, idle
+from pyrogram import Client, idle
 from os import environ
 from os.path import exists
 
@@ -29,10 +29,14 @@ bot = Client(
     no_updates=False
 )
 
-# Handler untuk semua pesan text
-@bot.on_message(filters.text)
-async def handle_message(client, message):
-    text = message.text.strip() if message.text else ""
+# Handler untuk SEMUA pesan (tanpa filter)
+@bot.on_message()
+async def handle_all_messages(client, message):
+    # Skip jika message.text tidak ada
+    if not message.text:
+        return
+        
+    text = message.text.strip()
     logger.info(f"[MESSAGE] Received: '{text}' from {message.from_user.id if message.from_user else 'Unknown'} in chat {message.chat.id}")
     
     # Cek apakah pesan dimulai dengan /id
