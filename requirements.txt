@@ -1,6 +1,5 @@
 pyrogram>=2.0.0
 pymongo>=4.0.0
-pymongo[srv]>=4.0.0
 dnspython>=2.0.0
 motor>=3.0.0
 chardet>=5.0.0
