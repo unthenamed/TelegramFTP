@@ -1,20 +1,27 @@
 import asyncio
+import threading
+
+# --- FIX: INI HARUS PALING ATAS ---
+# Kita buat event loop secara paksa SEBELUM library lain di-import
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+# ----------------------------------
+
+# Sekarang aman untuk mengimpor library yang bergantung pada event loop
+from pyrogram import Client
+import aioftp
+import aiosqlite
 import os
 import time
 import pathlib
 import sqlite3
-import aioftp
-import aiosqlite
-from pyrogram import Client
 from loguru import logger
 from dotenv import load_dotenv
 
-# --- SETUP AWAL ---
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
+# --- KONFIGURASI ---
 load_dotenv()
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
@@ -51,7 +58,6 @@ class TelegramPath(aioftp.PathIO):
                 return bool(row[0]) if row else False
 
     async def stat(self, path):
-        # Struktur stat standar agar klien tidak bingung
         class Stat:
             st_size = 0
             st_mtime = time.time()
@@ -62,7 +68,6 @@ class TelegramPath(aioftp.PathIO):
         return Stat()
 
     async def list(self, path):
-        # Mengembalikan objek Path agar aioftp tidak error
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT filepath FROM files") as cursor:
                 async for row in cursor:
@@ -75,7 +80,6 @@ async def main():
     app = Client("ftp_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
     await app.start()
     
-    # Server Setup
     user = aioftp.User()
     server = aioftp.Server(users=[user], path_io_factory=TelegramPath)
     
