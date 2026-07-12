@@ -13,7 +13,7 @@ if sys.version_info >= (3, 10):
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
-from pyrogram import Client, idle
+from pyrogram import Client, filters, idle
 from os import environ
 from os.path import exists
 
@@ -31,12 +31,12 @@ bot = Client(
     bot_token=environ.get("BOT_TOKEN")
 )
 
-# Handler untuk SEMUA pesan (tanpa filter)
-@bot.on_message()
-async def handle_all_messages(client, message):
+# Handler untuk pesan dari private chat SAJA
+@bot.on_message(filters.private)
+async def handle_private_messages(client, message):
     try:
         # Log semua pesan yang diterima
-        logger.info(f"[RECEIVED] Text: {message.text} | Chat ID: {message.chat.id} | User: {message.from_user.id if message.from_user else 'None'}")
+        logger.info(f"[RECEIVED PRIVATE] Text: {message.text} | Chat ID: {message.chat.id} | User: {message.from_user.id if message.from_user else 'None'}")
         
         # Skip jika message.text tidak ada
         if not message.text:
@@ -72,6 +72,38 @@ async def handle_all_messages(client, message):
     except Exception as e:
         logger.error(f"[CRITICAL] Handler error: {e}", exc_info=True)
 
+# Handler untuk group messages
+@bot.on_message(filters.group)
+async def handle_group_messages(client, message):
+    try:
+        logger.info(f"[RECEIVED GROUP] Text: {message.text} | Chat ID: {message.chat.id}")
+        
+        if not message.text:
+            return
+            
+        text = message.text.strip()
+        
+        if text.startswith("/id"):
+            logger.info(f"[ACTION GROUP] Detected /id command")
+            try:
+                response = f"Chat ID: `{message.chat.id}`"
+                sent = await message.reply(response, parse_mode="markdown")
+                logger.info(f"[SUCCESS GROUP] Reply sent")
+            except Exception as e:
+                logger.error(f"[ERROR GROUP] Failed to send reply: {e}", exc_info=True)
+        
+        elif text.startswith("/channel"):
+            logger.info(f"[ACTION GROUP] Detected /channel command")
+            try:
+                response = f"Chat ID: `{message.chat.id}`"
+                sent = await message.reply(response, parse_mode="markdown")
+                logger.info(f"[SUCCESS GROUP] Reply sent")
+            except Exception as e:
+                logger.error(f"[ERROR GROUP] Failed to send reply: {e}", exc_info=True)
+                
+    except Exception as e:
+        logger.error(f"[CRITICAL GROUP] Handler error: {e}", exc_info=True)
+
 async def main():
     try:
         print('Bot starting... Press Ctrl+C to stop.')
@@ -85,7 +117,7 @@ async def main():
         me = await bot.get_me()
         logger.info(f"Bot: @{me.username} (ID: {me.id})")
         logger.info("=" * 60)
-        logger.info("Bot is listening for messages...")
+        logger.info("Bot is listening for messages in private and group chats...")
         logger.info("Send /id or /channel to test")
         logger.info("=" * 60)
         
