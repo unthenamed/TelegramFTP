@@ -180,15 +180,10 @@ async def main():
     )
     
     # 4. Start FTP Server
-    # Kita menggunakan `path_io_factory` untuk memaksa aioftp menggunakan 
-    # VFS kustom (TelegramPath) milik kita.
-        # 4. Start FTP Server
     server = aioftp.Server(
         users=[user],
         path_io_factory=TelegramPath,
-        # Menambahkan port pasif agar stabil di aplikasi FTP umum
         passive_ports=range(50000, 50100), 
-        # Membatasi koneksi agar Termux tidak kehabisan memori
         maximum_connections=10 
     )
 
