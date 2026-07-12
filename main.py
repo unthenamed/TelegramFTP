@@ -68,72 +68,70 @@ class TelegramPath(aioftp.PathIO):
     dan mengarahkannya ke Telegram dan database lokal.
     """
     
-    def __init__(self, path="."):
-        super().__init__(path)
+    # Menerima argumen apapun (seperti timeout, connection) dari aioftp
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.db_path = "ftp_index.db"
 
-    async def exists(self):
-        if str(self.path) == "." or str(self.path) == "/":
+    # Perhatikan: variabel 'path' sekarang dikirim ke dalam masing-masing fungsi
+    async def exists(self, path):
+        if str(path) in (".", "/"):
             return True
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT id FROM files WHERE filepath = ?", (str(self.path),)) as cursor:
+            async with db.execute("SELECT id FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 return await cursor.fetchone() is not None
 
-    async def is_dir(self):
-        if str(self.path) == "." or str(self.path) == "/":
+    async def is_dir(self, path):
+        if str(path) in (".", "/"):
             return True
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT is_dir FROM files WHERE filepath = ?", (str(self.path),)) as cursor:
+            async with db.execute("SELECT is_dir FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 row = await cursor.fetchone()
                 return bool(row[0]) if row else False
 
-    async def is_file(self):
-        return not await self.is_dir()
+    async def is_file(self, path):
+        return not await self.is_dir(path)
 
-    async def mkdir(self, parents=False, exist_ok=False):
-        """Membuat folder virtual di database"""
+    async def mkdir(self, path, parents=False, exist_ok=False):
         async with aiosqlite.connect(self.db_path) as db:
             try:
                 await db.execute(
                     "INSERT INTO files (filepath, message_id, size, is_dir) VALUES (?, ?, ?, ?)",
-                    (str(self.path), 0, 0, True)
+                    (str(path), 0, 0, True)
                 )
                 await db.commit()
-                logger.info(f"Folder dibuat: {self.path}")
+                logger.info(f"Folder dibuat: {path}")
             except aiosqlite.IntegrityError:
                 if not exist_ok:
                     raise FileExistsError
 
-    async def rmdir(self):
-        """Menghapus folder virtual"""
+    async def rmdir(self, path):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM files WHERE filepath = ? AND is_dir = 1", (str(self.path),))
+            await db.execute("DELETE FROM files WHERE filepath = ? AND is_dir = 1", (str(path),))
             await db.commit()
 
-    async def unlink(self):
-        """Menghapus file (menghapus pesan di telegram dan entri DB)"""
+    async def unlink(self, path):
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT message_id FROM files WHERE filepath = ?", (str(self.path),)) as cursor:
+            async with db.execute("SELECT message_id FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 row = await cursor.fetchone()
                 if row:
                     msg_id = row[0]
                     await app.delete_messages(CHAT_ID, msg_id)
-                    await db.execute("DELETE FROM files WHERE filepath = ?", (str(self.path),))
+                    await db.execute("DELETE FROM files WHERE filepath = ?", (str(path),))
                     await db.commit()
-                    logger.info(f"File dihapus: {self.path}")
+                    logger.info(f"File dihapus: {path}")
 
-    async def stat(self):
-        """Mengembalikan metadata file ke FTP Client"""
-        if str(self.path) == "." or str(self.path) == "/":
+    async def stat(self, path):
+        if str(path) in (".", "/"):
             class DummyStat:
                 st_size = 0
                 st_mtime = 0
                 st_ctime = 0
-                st_mode = 0o755 | 0o40000 # Mode direktori
+                st_mode = 0o755 | 0o40000 
             return DummyStat()
             
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT size, is_dir FROM files WHERE filepath = ?", (str(self.path),)) as cursor:
+            async with db.execute("SELECT size, is_dir FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 row = await cursor.fetchone()
                 if not row:
                     raise FileNotFoundError
@@ -142,84 +140,23 @@ class TelegramPath(aioftp.PathIO):
                     st_size = row[0]
                     st_mtime = 0
                     st_ctime = 0
-                    # 0o40000 untuk direktori, 0o100000 untuk file reguler
                     st_mode = (0o755 | 0o40000) if row[1] else (0o644 | 0o100000)
                 return Stat()
 
-    async def open(self, mode="r", *args, **kwargs):
-        """
-        Logika inti saat FTP Client mulai mengunggah (w) atau mengunduh (r).
-        Catatan: Ini menggunakan pendekatan stream simulasi sederhana.
-        """
-        if "w" in mode:
-            # Mengembalikan stream writer yang nantinya diarahkan ke Pyrogram
-            # Pada implementasi VFS penuh, di sini menggunakan Async Generator
-            return TelegramFileWriter(str(self.path), self.db_path)
-        elif "r" in mode:
-            return TelegramFileReader(str(self.path), self.db_path)
-
-
-# --- Helper Classes untuk Streaming Read/Write ---
-
-class TelegramFileWriter:
-    """Buffer untuk menangkap data unggahan dari FTP dan mengirim ke Telegram"""
-    def __init__(self, path, db_path):
-        self.path = path
-        self.db_path = db_path
-        self.buffer = io.BytesIO() # Untuk produksi file besar, gunakan Async Queue + Chunking
-        
-    async def write(self, data):
-        self.buffer.write(data)
-        
-    async def close(self):
-        self.buffer.seek(0)
-        # Kirim ke Telegram setelah klien FTP selesai mengirim data
-        logger.info(f"Mengunggah {self.path} ke Telegram...")
-        msg = await app.send_document(
-            chat_id=CHAT_ID, 
-            document=self.buffer, 
-            file_name=os.path.basename(self.path)
-        )
-        # Simpan Message ID ke Database
-        size = self.buffer.getbuffer().nbytes
+    async def list(self, path):
+        """Fungsi ini wajib ada agar FTP Client bisa membaca isi direktori"""
+        import pathlib
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT OR REPLACE INTO files (filepath, message_id, size, is_dir) VALUES (?, ?, ?, ?)",
-                (self.path, msg.id, size, False)
-            )
-            await db.commit()
-        logger.success(f"Berhasil mengunggah: {self.path} (ID: {msg.id})")
+            async with db.execute("SELECT filepath FROM files") as cursor:
+                async for row in cursor:
+                    # Menampilkan seluruh file ke dalam FTP Client
+                    yield pathlib.Path(row[0])
 
-class TelegramFileReader:
-    """Mengunduh stream data dari Telegram dan mengirimnya ke FTP Client"""
-    def __init__(self, path, db_path):
-        self.path = path
-        self.db_path = db_path
-        self.data_stream = None
-        
-    async def read(self, size=-1):
-        if self.data_stream is None:
-            # Dapatkan Message ID
-            async with aiosqlite.connect(self.db_path) as db:
-                async with db.execute("SELECT message_id FROM files WHERE filepath = ?", (self.path,)) as cursor:
-                    row = await cursor.fetchone()
-                    if not row:
-                        raise FileNotFoundError
-                    msg_id = row[0]
-            
-            # Unduh ke memory buffer (Untuk efisiensi tinggi, gunakan stream generator pyrogram)
-            logger.info(f"Mengunduh dari Telegram (Msg ID: {msg_id})...")
-            self.data_stream = await app.download_media(
-                message=msg_id, 
-                in_memory=True
-            )
-            self.data_stream.seek(0)
-            
-        return self.data_stream.read(size)
-        
-    async def close(self):
-        if self.data_stream:
-            self.data_stream.close()
+    async def open(self, path, mode="r", *args, **kwargs):
+        if "w" in mode:
+            return TelegramFileWriter(str(path), self.db_path)
+        elif "r" in mode:
+            return TelegramFileReader(str(path), self.db_path)
 
 # ==========================================
 # 3. SERVER RUNNER
