@@ -28,20 +28,25 @@ bot = Client(
     bot_token=environ.get("BOT_TOKEN")
 )
 
-# Handler untuk semua message - untuk debug
-@bot.on_message()
-async def handle_all_messages(client, message):
-    logger.info(f"[ALL MESSAGES] Received: {message.text} from {message.from_user.first_name if message.from_user else 'Unknown'} in {message.chat.id}")
-
-# Handler khusus untuk /id dan /channel
-@bot.on_message(filters.text & (filters.command("id") | filters.command("channel")))
+# Handler untuk /id command
+@bot.on_message(filters.command("id"))
 async def get_id(client, message):
-    logger.info(f"[ID COMMAND] Processing /id or /channel from {message.from_user.first_name if message.from_user else 'Unknown'}")
+    logger.info(f"[ID COMMAND] Received /id from {message.from_user.first_name if message.from_user else 'Unknown'} in chat {message.chat.id}")
     try:
         await message.reply(f"Channel ID: {message.chat.id}")
         logger.info(f"[ID COMMAND] Reply sent successfully!")
     except Exception as e:
         logger.error(f"[ID COMMAND] Error sending reply: {e}")
+
+# Handler untuk /channel command
+@bot.on_message(filters.command("channel"))
+async def get_channel(client, message):
+    logger.info(f"[CHANNEL COMMAND] Received /channel from {message.from_user.first_name if message.from_user else 'Unknown'} in chat {message.chat.id}")
+    try:
+        await message.reply(f"Channel ID: {message.chat.id}")
+        logger.info(f"[CHANNEL COMMAND] Reply sent successfully!")
+    except Exception as e:
+        logger.error(f"[CHANNEL COMMAND] Error sending reply: {e}")
 
 async def main():
     try:
