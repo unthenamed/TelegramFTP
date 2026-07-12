@@ -58,32 +58,22 @@ async def init_db():
         """)
         await db.commit()
     logger.info("Database SQLite berhasil diinisialisasi.")
-
 # ==========================================
-# 2. VIRTUAL FILE SYSTEM (VFS)
+# 2. VIRTUAL FILE SYSTEM (VFS) - REVISED
 # ==========================================
 class TelegramPath(aioftp.PathIO):
-    """
-    Sistem File Virtual kustom yang mencegat (intercept) operasi FTP
-    dan mengarahkannya ke Telegram dan database lokal.
-    """
-    
-    # Menerima argumen apapun (seperti timeout, connection) dari aioftp
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db_path = "ftp_index.db"
 
-    # Perhatikan: variabel 'path' sekarang dikirim ke dalam masing-masing fungsi
     async def exists(self, path):
-        if str(path) in (".", "/"):
-            return True
+        if str(path) in (".", "/"): return True
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT id FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 return await cursor.fetchone() is not None
 
     async def is_dir(self, path):
-        if str(path) in (".", "/"):
-            return True
+        if str(path) in (".", "/"): return True
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT is_dir FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 row = await cursor.fetchone()
@@ -92,73 +82,39 @@ class TelegramPath(aioftp.PathIO):
     async def is_file(self, path):
         return not await self.is_dir(path)
 
-    async def mkdir(self, path, parents=False, exist_ok=False):
-        async with aiosqlite.connect(self.db_path) as db:
-            try:
-                await db.execute(
-                    "INSERT INTO files (filepath, message_id, size, is_dir) VALUES (?, ?, ?, ?)",
-                    (str(path), 0, 0, True)
-                )
-                await db.commit()
-                logger.info(f"Folder dibuat: {path}")
-            except aiosqlite.IntegrityError:
-                if not exist_ok:
-                    raise FileExistsError
-
-    async def rmdir(self, path):
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM files WHERE filepath = ? AND is_dir = 1", (str(path),))
-            await db.commit()
-
-    async def unlink(self, path):
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT message_id FROM files WHERE filepath = ?", (str(path),)) as cursor:
-                row = await cursor.fetchone()
-                if row:
-                    msg_id = row[0]
-                    await app.delete_messages(CHAT_ID, msg_id)
-                    await db.execute("DELETE FROM files WHERE filepath = ?", (str(path),))
-                    await db.commit()
-                    logger.info(f"File dihapus: {path}")
-
     async def stat(self, path):
+        # Mengembalikan metadata yang lebih "ramah" untuk klien FTP
+        import time
+        class Stat:
+            st_size = 0
+            st_mtime = time.time()
+            st_ctime = time.time()
+            st_mode = 0o40755 # Default untuk directory/file standar
+        
         if str(path) in (".", "/"):
-            class DummyStat:
-                st_size = 0
-                st_mtime = 0
-                st_ctime = 0
-                st_mode = 0o755 | 0o40000 
-            return DummyStat()
+            return Stat()
             
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT size, is_dir FROM files WHERE filepath = ?", (str(path),)) as cursor:
                 row = await cursor.fetchone()
-                if not row:
-                    raise FileNotFoundError
+                if not row: raise FileNotFoundError
                 
-                class Stat:
-                    st_size = row[0]
-                    st_mtime = 0
-                    st_ctime = 0
-                    st_mode = (0o755 | 0o40000) if row[1] else (0o644 | 0o100000)
-                return Stat()
+                s = Stat()
+                s.st_size = row[0]
+                s.st_mode = 0o100644 if not row[1] else 0o40755
+                return s
 
     async def list(self, path):
-        """Fungsi ini wajib ada agar FTP Client bisa membaca isi direktori"""
+        # Mengembalikan list file dengan format yang diharapkan klien
         import pathlib
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT filepath FROM files") as cursor:
                 async for row in cursor:
-                    # Menampilkan seluruh file ke dalam FTP Client
-                    yield pathlib.Path(row[0])
+                    # Kita harus mengirim path relatif, bukan path absolut
+                    yield pathlib.Path(row[0]).name
 
-    async def open(self, path, mode="r", *args, **kwargs):
-        if "w" in mode:
-            return TelegramFileWriter(str(path), self.db_path)
-        elif "r" in mode:
-            return TelegramFileReader(str(path), self.db_path)
-
-# ==========================================
+    # ... (Biarkan fungsi mkdir, rmdir, unlink, open seperti sebelumnya) ...
+#==========================================
 # 3. SERVER RUNNER
 # ==========================================
 async def main():
