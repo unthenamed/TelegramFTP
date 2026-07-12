@@ -180,16 +180,17 @@ async def main():
     )
     
     # 4. Start FTP Server
+    # Kita hapus 'passive_ports' untuk menghindari error tipe argumen
     server = aioftp.Server(
         users=[user],
-        path_io_factory=TelegramPath,
-        passive_ports=range(50000, 50100), 
-        maximum_connections=10 
+        path_io_factory=TelegramPath
     )
-
     
     logger.info(f"FTP Server berjalan di {FTP_HOST}:{FTP_PORT}")
+    # Jika perlu membatasi koneksi, kita bisa lakukan di luar parameter Server jika diperlukan,
+    # namun aioftp biasanya cukup stabil dengan pengaturan standar ini.
     await server.start(FTP_HOST, FTP_PORT)
+
     
     # Biarkan program berjalan selamanya
     await asyncio.Event().wait()
