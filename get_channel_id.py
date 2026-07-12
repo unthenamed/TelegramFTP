@@ -28,14 +28,20 @@ bot = Client(
     bot_token=environ.get("BOT_TOKEN")
 )
 
-@bot.on_message(filters.text)
-async def get_id(_cl, message):
-    logger.info(f"Message received: {message.text} from {message.from_user.first_name if message.from_user else 'Unknown'}")
-    if message.text.startswith("/id") or message.text.startswith("/channel"):
-        logger.info(f"Sending channel ID: {message.chat.id}")
-        await message.reply(str(message.chat.id))
-    else:
-        logger.info(f"Message does not match filter: {message.text}")
+# Handler untuk semua message - untuk debug
+@bot.on_message()
+async def handle_all_messages(client, message):
+    logger.info(f"[ALL MESSAGES] Received: {message.text} from {message.from_user.first_name if message.from_user else 'Unknown'} in {message.chat.id}")
+
+# Handler khusus untuk /id dan /channel
+@bot.on_message(filters.text & (filters.command("id") | filters.command("channel")))
+async def get_id(client, message):
+    logger.info(f"[ID COMMAND] Processing /id or /channel from {message.from_user.first_name if message.from_user else 'Unknown'}")
+    try:
+        await message.reply(f"Channel ID: {message.chat.id}")
+        logger.info(f"[ID COMMAND] Reply sent successfully!")
+    except Exception as e:
+        logger.error(f"[ID COMMAND] Error sending reply: {e}")
 
 async def main():
     try:
@@ -43,10 +49,14 @@ async def main():
         logger.info("Bot is starting...")
         await bot.start()
         logger.info("Bot started successfully!")
+        logger.info("Waiting for messages...")
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         print("\nBot stopped.")
         logger.info("Bot stopped by user.")
+        await bot.stop()
+    except Exception as e:
+        logger.error(f"Error: {e}")
         await bot.stop()
 
 if __name__ == "__main__":
