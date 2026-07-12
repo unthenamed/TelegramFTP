@@ -1,4 +1,23 @@
 import asyncio
+
+# --- TAMBAHKAN BARIS INI ---
+# Membuat event loop manual untuk mencegah error Pyrogram di Python 3.12+
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+# ---------------------------
+
+import os
+from pyrogram import Client
+import aioftp
+import aiosqlite
+from dotenv import load_dotenv
+from loguru import logger
+import io
+
+# ... (lanjutkan dengan kode yang sebelumnya di bawah ini) ...
+
 import os
 from pyrogram import Client
 import aioftp
