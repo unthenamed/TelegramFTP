@@ -49,6 +49,13 @@ async def main():
         logger.info("Bot is starting...")
         await bot.start()
         logger.info("Bot started successfully!")
+        
+        # Print info bot
+        me = await bot.get_me()
+        logger.info(f"Bot username: @{me.username}")
+        logger.info(f"Bot ID: {me.id}")
+        logger.info(f"Bot first name: {me.first_name}")
+        
         logger.info("Waiting for messages...")
         await asyncio.Event().wait()
     except KeyboardInterrupt:
